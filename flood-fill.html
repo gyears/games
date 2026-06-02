@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>洪水填色</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0e0e14;
+    --surface: #17171f;
+    --surface2: #1e1e28;
+    --border: rgba(255,255,255,0.08);
+    --text: #f0eeff;
+    --muted: rgba(240,238,255,0.45);
+    --accent: #a78bfa;
+    --accent2: #60a5fa;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Noto Sans TC', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px 16px 48px;
+    overflow-x: hidden;
+  }
+  body::before {
+    content: '';
+    position: fixed;
+    top: -200px; left: 50%;
+    transform: translateX(-50%);
+    width: 600px; height: 400px;
+    background: radial-gradient(ellipse, rgba(167,139,250,0.12) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(28px, 5vw, 42px);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    background: linear-gradient(135deg, #c4b5fd 0%, #818cf8 50%, #60a5fa 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 4px;
+  }
+  .subtitle {
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 20px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+  .top-bar {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 16px;
+  }
+  .btn-icon {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--muted);
+    width: 38px; height: 38px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    font-size: 17px;
+    transition: all 0.15s;
+  }
+  .btn-icon:hover { color: var(--text); border-color: rgba(255,255,255,0.2); background: var(--surface2); }
+  .diff-tabs {
+    display: flex;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 4px;
+    gap: 2px;
+    margin-bottom: 18px;
+  }
+  .diff-tab {
+    padding: 6px 20px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-family: 'Syne', sans-serif;
+    font-weight: 600;
+    cursor: pointer;
+    color: var(--muted);
+    border: none;
+    background: none;
+    transition: all 0.15s;
+  }
+  .diff-tab.active {
+    background: var(--surface2);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .stats-row {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 10px 18px;
+    text-align: center;
+    min-width: 90px;
+  }
+  .stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 2px; }
+  .stat-val { font-family: 'Syne', sans-serif; font-size: 22px; font-weight: 700; }
+  .stat-val.steps { color: var(--accent); }
+  .stat-val.pct { color: var(--accent2); }
+  #board-wrap { position: relative; margin-bottom: 18px; }
+  #board {
+    display: grid;
+    gap: 3px;
+    border-radius: 14px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    position: relative;
+    z-index: 2;
+  }
+  .cell {
+    border-radius: 3px;
+    transition: background 0.18s cubic-bezier(.4,0,.2,1);
+  }
+  .cell.owned { box-shadow: inset 0 0 0 2px rgba(255,255,255,0.3); }
+  .cell.flash { animation: cellFlash 0.3s ease; }
+  @keyframes cellFlash {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.15); }
+    100% { transform: scale(1); }
+  }
+  .cell.falling {
+    animation: cellFall var(--fall-dur, 0.6s) cubic-bezier(.4,0,.8,1) var(--fall-delay, 0s) forwards;
+  }
+  @keyframes cellFall {
+    0%   { transform: translateY(0) rotate(0deg); opacity: 1; }
+    100% { transform: translateY(120px) rotate(20deg); opacity: 0; }
+  }
+  .color-btns {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    margin-bottom: 14px;
+  }
+  .color-btn {
+    width: 48px; height: 48px;
+    border-radius: 50%;
+    border: 3px solid transparent;
+    cursor: pointer;
+    transition: transform 0.12s, box-shadow 0.15s, border-color 0.15s;
+  }
+  .color-btn:hover { transform: scale(1.15); }
+  .color-btn.active { border-color: white; }
+  .color-btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
+  .action-row {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    margin-bottom: 6px;
+  }
+  .btn {
+    padding: 9px 22px;
+    border-radius: 10px;
+    font-family: 'Syne', sans-serif;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    transition: all 0.15s;
+  }
+  .btn-ghost { background: var(--surface); color: var(--muted); }
+  .btn-ghost:hover { color: var(--text); background: var(--surface2); }
+  .btn-primary { background: var(--accent); color: #1a0a2e; border-color: var(--accent); }
+  .btn-primary:hover { filter: brightness(1.1); }
+  #msg {
+    text-align: center;
+    font-size: 13px;
+    color: var(--muted);
+    min-height: 18px;
+    margin-bottom: 4px;
+  }
+  .progress-bar-wrap {
+    width: 100%;
+    max-width: 420px;
+    height: 6px;
+    background: var(--surface2);
+    border-radius: 99px;
+    overflow: hidden;
+    margin-bottom: 18px;
+  }
+  #progress-bar {
+    height: 100%;
+    border-radius: 99px;
+    background: linear-gradient(90deg, #818cf8, #60a5fa);
+    transition: width 0.3s cubic-bezier(.4,0,.2,1);
+  }
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    padding: 20px;
+    backdrop-filter: blur(4px);
+    animation: fadeIn 0.2s ease;
+  }
+  .overlay.hidden { display: none; }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  .modal {
+    background: var(--surface);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 20px;
+    padding: 28px 28px 24px;
+    max-width: 400px;
+    width: 100%;
+    animation: slideUp 0.25s cubic-bezier(.4,0,.2,1);
+    position: relative;
+  }
+  @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: none; opacity: 1; } }
+  .modal h2 {
+    font-family: 'Syne', sans-serif;
+    font-size: 22px;
+    font-weight: 800;
+    margin-bottom: 16px;
+  }
+  .modal-emoji { font-size: 40px; display: block; margin-bottom: 10px; }
+  .guide-item {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 14px;
+    align-items: flex-start;
+  }
+  .guide-num {
+    background: rgba(167,139,250,0.2);
+    color: var(--accent);
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .guide-text { font-size: 14px; line-height: 1.6; color: rgba(240,238,255,0.8); }
+  .guide-text strong { color: var(--text); }
+  .color-demo { display: flex; gap: 5px; margin-top: 6px; }
+  .color-dot { width: 18px; height: 18px; border-radius: 50%; }
+  .tip-box {
+    background: rgba(167,139,250,0.1);
+    border: 1px solid rgba(167,139,250,0.2);
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 13px;
+    color: rgba(240,238,255,0.7);
+    margin: 12px 0 18px;
+    line-height: 1.6;
+  }
+  .tip-box strong { color: var(--accent); }
+  .win-stats {
+    display: flex;
+    gap: 10px;
+    margin: 14px 0 18px;
+  }
+  .win-stat {
+    flex: 1;
+    background: var(--surface2);
+    border-radius: 10px;
+    padding: 10px;
+    text-align: center;
+  }
+  .win-stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+  .win-stat-val { font-family: 'Syne', sans-serif; font-size: 20px; font-weight: 700; color: var(--accent); }
+  .close-btn {
+    position: absolute;
+    top: 16px; right: 16px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    width: 30px; height: 30px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    font-size: 14px;
+    color: var(--muted);
+    transition: all 0.15s;
+  }
+  .close-btn:hover { color: var(--text); }
+  .steps-danger { color: #f87171 !important; }
+
+  /* ── 作弊模式（測試用）── 關閉方法：把 CHEAT_MODE = true 改成 false */
+  #cheat-bar {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    background: rgba(250,204,21,0.08);
+    border: 1px dashed rgba(250,204,21,0.4);
+    border-radius: 10px;
+    padding: 7px 14px;
+    margin-bottom: 14px;
+    font-size: 12px;
+    color: #facc15;
+  }
+  #cheat-bar button {
+    padding: 4px 12px;
+    border-radius: 7px;
+    font-size: 12px;
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    cursor: pointer;
+    border: 1px solid rgba(250,204,21,0.5);
+    background: rgba(250,204,21,0.12);
+    color: #facc15;
+    transition: background 0.1s;
+  }
+  #cheat-bar button:hover { background: rgba(250,204,21,0.25); }
+
+  /* Hard mode reveal backdrop */
+  #backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: #000;
+  }
+  #backdrop.show { display: flex; }
+  #backdrop-img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    opacity: 0;
+    transition: opacity 1s ease;
+  }
+  #backdrop-img.reveal { opacity: 1; }
+  #backdrop-text {
+    position: absolute;
+    bottom: 48px;
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+    opacity: 0;
+    transition: opacity 0.8s ease 0.5s;
+    pointer-events: none;
+  }
+  #backdrop-text.reveal { opacity: 1; }
+  #backdrop-text p {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(18px, 3vw, 28px);
+    font-weight: 800;
+    color: #fff;
+    text-shadow: 0 2px 20px rgba(0,0,0,0.8);
+    white-space: nowrap;
+  }
+  #backdrop-close {
+    position: absolute;
+    top: 20px; right: 20px;
+    background: rgba(255,255,255,0.15);
+    border: 1px solid rgba(255,255,255,0.3);
+    border-radius: 10px;
+    color: #fff;
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 14px;
+    padding: 8px 20px;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.5s ease 1.5s, background 0.15s;
+  }
+  #backdrop-close.reveal { opacity: 1; pointer-events: auto; }
+  #backdrop-close:hover { background: rgba(255,255,255,0.25); }
+
+  #confetti-canvas {
+    position: fixed; inset: 0;
+    pointer-events: none;
+    z-index: 200;
+  }
+</style>
+</head>
+<body>
+
+<canvas id="confetti-canvas"></canvas>
+
+<!-- Hard mode backdrop reveal -->
+<div id="backdrop">
+  <img id="backdrop-img" src="" alt="彩蛋圖片">
+  <div id="backdrop-text"><p>🎉 恭喜過關！</p></div>
+  <button id="backdrop-close">再來一局</button>
+</div>
+
+<h1>洪水填色</h1>
+<p class="subtitle">Flood Fill Puzzle</p>
+
+<div class="top-bar">
+  <button class="btn-icon" id="guide-btn" title="遊戲指南" aria-label="開啟遊戲指南">?</button>
+  <div class="diff-tabs">
+    <button class="diff-tab active" data-diff="easy">簡單</button>
+    <button class="diff-tab" data-diff="hard">困難</button>
+  </div>
+</div>
+
+<div class="stats-row">
+  <div class="stat-card">
+    <div class="stat-label">剩餘步數</div>
+    <div class="stat-val steps" id="steps-val">—</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">佔領比例</div>
+    <div class="stat-val pct" id="pct-val">0%</div>
+  </div>
+</div>
+
+<div id="board-wrap">
+  <div id="board"></div>
+</div>
+
+<div class="progress-bar-wrap">
+  <div id="progress-bar" style="width:0%"></div>
+</div>
+
+<div class="color-btns" id="color-btns"></div>
+
+<p id="msg">選一個顏色，讓左上角的領地往外擴張！</p>
+
+<!-- 作弊列（測試用）-->
+<div id="cheat-bar">
+  🛠 測試模式
+  <button onclick="cheatWinEasy()">簡單過關</button>
+  <button onclick="cheatWinHard()">困難過關</button>
+  <button onclick="cheatShowEgg()">直接看彩蛋</button>
+</div>
+
+<div class="action-row">
+  <button class="btn btn-ghost" id="reset-btn">重新開始</button>
+  <button class="btn btn-primary" id="hint-btn">提示 (3)</button>
+</div>
+
+<!-- Guide overlay -->
+<div class="overlay hidden" id="guide-overlay">
+  <div class="modal">
+    <button class="close-btn" id="guide-close">✕</button>
+    <span class="modal-emoji">🌊</span>
+    <h2>怎麼玩？</h2>
+    <div class="guide-item">
+      <div class="guide-num">1</div>
+      <div class="guide-text">棋盤<strong>左上角</strong>是你的領地（有白色邊框的格子）。</div>
+    </div>
+    <div class="guide-item">
+      <div class="guide-num">2</div>
+      <div class="guide-text">每次點一個<strong>顏色按鈕</strong>，你的整片領地會變成那個顏色，同時把旁邊相鄰的同色格子一起吃掉。
+        <div class="color-demo">
+          <div class="color-dot" style="background:#f87171"></div>
+          <div class="color-dot" style="background:#fb923c"></div>
+          <div class="color-dot" style="background:#facc15"></div>
+          <div class="color-dot" style="background:#4ade80"></div>
+          <div class="color-dot" style="background:#60a5fa"></div>
+          <div class="color-dot" style="background:#c084fc"></div>
+        </div>
+      </div>
+    </div>
+    <div class="guide-item">
+      <div class="guide-num">3</div>
+      <div class="guide-text">目標是在<strong>步數耗盡前</strong>把整個棋盤變成同一個顏色！</div>
+    </div>
+    <div class="guide-item">
+      <div class="guide-num">4</div>
+      <div class="guide-text">每局有 <strong>3 次提示</strong>可用，遇到困難時按提示按鈕。</div>
+    </div>
+    <div class="tip-box">
+      <strong>策略小提示：</strong>往面積最大的顏色方向擴張，一次可以吃掉最多格子！困難模式過關有彩蛋唷！
+    </div>
+    <div style="display:flex; gap:10px;">
+      <button class="btn btn-ghost" style="flex:1" id="guide-close2">關閉</button>
+      <button class="btn btn-primary" style="flex:1" onclick="document.getElementById('guide-overlay').classList.add('hidden'); initGame()">開始遊戲</button>
+    </div>
+  </div>
+</div>
+
+<!-- Win/Lose result overlay -->
+<div class="overlay hidden" id="result-overlay">
+  <div class="modal" style="text-align:center">
+    <span class="modal-emoji" id="result-emoji">🎉</span>
+    <h2 id="result-title">恭喜完成！</h2>
+    <p id="result-sub" style="font-size:14px;color:var(--muted);margin-bottom:12px;line-height:1.7;"></p>
+    <div class="win-stats" id="win-stats"></div>
+    <div style="display:flex;gap:10px;margin-top:4px;">
+      <button class="btn btn-ghost" style="flex:1" onclick="closeResult()">查看棋盤</button>
+      <button class="btn btn-primary" style="flex:1" onclick="closeResult(); initGame()">再來一局</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const COLORS = ['#f87171','#fb923c','#facc15','#4ade80','#60a5fa','#c084fc'];
+const GLOWS  = ['rgba(248,113,113,0.5)','rgba(251,146,60,0.5)','rgba(250,204,21,0.5)','rgba(74,222,128,0.5)','rgba(96,165,250,0.5)','rgba(192,132,252,0.5)'];
+
+// ── 彩蛋圖片（困難模式過關隨機顯示）──────────────────────────────────
+// 請把每張圖片的 base64 字串填入下方陣列，格式如下：
+// "data:image/jpeg;base64,/9j/4AAQSkZJRg..."
+// 共 10 張，每次過關隨機抽一張。
+const EASTER_EGG_IMAGES = [
+  "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA0MDAgMzAwIj48cmVjdCB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgZmlsbD0iIzFhMWEyZSIvPjx0ZXh0IHg9IjIwMCIgeT0iMTMwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LXNpemU9IjY0IiBmaWxsPSIjYTc4YmZhIj7wn46/PC90ZXh0Pjx0ZXh0IHg9IjIwMCIgeT0iMTgwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LXNpemU9IjIwIiBmaWxsPSIjZjBlZWZmIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiI+5Zu65m6H5b2i5LiK5Li6IzE8L3RleHQ+PHRleHQgeD0iMjAwIiB5PSIyMjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtc2l6ZT0iMTQiIGZpbGw9InJnYmEoMjQwLDIzOCwyNTUsMC41KSIgZm9udC1mYW1pbHk9InNhbnMtc2VyaWYiPuiurOWwj+eCueaYr+ivr+imgeWxsOaWh+S7tuS4juaBsO+8gTwvdGV4dD48L3N2Zz4=",
+  "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA0MDAgMzAwIj48cmVjdCB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgZmlsbD0iIzBkMWIyYSIvPjx0ZXh0IHg9IjIwMCIgeT0iMTMwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LXNpemU9IjY0IiBmaWxsPSIjNjBhNWZhIj7wn4y4PC90ZXh0Pjx0ZXh0IHg9IjIwMCIgeT0iMTgwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LXNpemU9IjIwIiBmaWxsPSIjZjBlZWZmIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiI+5Zu65m6H5b2i5LiK5Li6IzI8L3RleHQ+PHRleHQgeD0iMjAwIiB5PSIyMjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtc2l6ZT0iMTQiIGZpbGw9InJnYmEoMjQwLDIzOCwyNTUsMC41KSIgZm9udC1mYW1pbHk9InNhbnMtc2VyaWYiPuS4gOaXpeetiuWNleS4jumDqOWwj+mMou+8gTwvdGV4dD48L3N2Zz4=",
+  "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA0MDAgMzAwIj48cmVjdCB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgZmlsbD0iIzBhMWEwYSIvPjx0ZXh0IHg9IjIwMCIgeT0iMTMwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LXNpemU9IjY0IiBmaWxsPSIjNGFkZTgwIj7wn46dPC90ZXh0Pjx0ZXh0IHg9IjIwMCIgeT0iMTgwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LXNpemU9IjIwIiBmaWxsPSIjZjBlZWZmIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiI+5Zu65m6H5b2i5LiK5Li6IzM8L3RleHQ+PHRleHQgeD0iMjAwIiB5PSIyMjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtc2l6ZT0iMTQiIGZpbGw9InJnYmEoMjQwLDIzOCwyNTUsMC41KSIgZm9udC1mYW1pbHk9InNhbnMtc2VyaWYiPuS9oeeUn+aIkOaYr+ezu+mln+ecu+mYhe+8gTwvdGV4dD48L3N2Zz4=",
+  "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA0MDAgMzAwIj48cmVjdCB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgZmlsbD0iIzFhMGEwYSIvPjx0ZXh0IHg9IjIwMCIgeT0iMTMwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LXNpemU9IjY0IiBmaWxsPSIjZjg3MTcxIj7wn4y8PC90ZXh0Pjx0ZXh0IHg9IjIwMCIgeT0iMTgwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LXNpemU9IjIwIiBmaWxsPSIjZjBlZWZmIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiI+5Zu65m6H5b2i5LiK5Li6IzQ8L3RleHQ+PHRleHQgeD0iMjAwIiB5PSIyMjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtc2l6ZT0iMTQiIGZpbGw9InJnYmEoMjQwLDIzOCwyNTUsMC41KSIgZm9udC1mYW1pbHk9InNhbnMtc2VyaWYiPuS9oeeUn+aYr+ezu+mln+ecu+mYhe+8gTwvdGV4dD48L3N2Zz4=",
+  "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA0MDAgMzAwIj48cmVjdCB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgZmlsbD0iIzFhMTUwMCIvPjx0ZXh0IHg9IjIwMCIgeT0iMTMwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LXNpemU9IjY0IiBmaWxsPSIjZmFjYzE1Ij7wn4y1PC90ZXh0Pjx0ZXh0IHg9IjIwMCIgeT0iMTgwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LXNpemU9IjIwIiBmaWxsPSIjZjBlZWZmIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiI+5Zu65m6H5b2i5LiK5Li6IzU8L3RleHQ+PHRleHQgeD0iMjAwIiB5PSIyMjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtc2l6ZT0iMTQiIGZpbGw9InJnYmEoMjQwLDIzOCwyNTUsMC41KSIgZm9udC1mYW1pbHk9InNhbnMtc2VyaWYiPuS4gOaXpeWFqOWwj+mCo++8gTwvdGV4dD48L3N2Zz4=",
+  "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA0MDAgMzAwIj48cmVjdCB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgZmlsbD0iIzE1MDAxYSIvPjx0ZXh0IHg9IjIwMCIgeT0iMTMwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LXNpemU9IjY0IiBmaWxsPSIjYzA4NGZjIj7wn4y3PC90ZXh0Pjx0ZXh0IHg9IjIwMCIgeT0iMTgwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LXNpemU9IjIwIiBmaWxsPSIjZjBlZWZmIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiI+5Zu65m6H5b2i5LiK5Li6IzY8L3RleHQ+PHRleHQgeD0iMjAwIiB5PSIyMjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtc2l6ZT0iMTQiIGZpbGw9InJnYmEoMjQwLDIzOCwyNTUsMC41KSIgZm9udC1mYW1pbHk9InNhbnMtc2VyaWYiPueCueaYr+WFrOWQjOS4jeS9v++8gTwvdGV4dD48L3N2Zz4=",
+  "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA0MDAgMzAwIj48cmVjdCB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgZmlsbD0iIzBkMGQxYSIvPjx0ZXh0IHg9IjIwMCIgeT0iMTIwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LXNpemU9IjU0IiBmaWxsPSIjZjBlZWZmIj7wn4yQPC90ZXh0Pjx0ZXh0IHg9IjIwMCIgeT0iMTgwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LXNpemU9IjIwIiBmaWxsPSIjYTc4YmZhIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiI+5Zu65m6H5b2i5LiK5Li6Izc8L3RleHQ+PHRleHQgeD0iMjAwIiB5PSIyMjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtc2l6ZT0iMTQiIGZpbGw9InJnYmEoMjQwLDIzOCwyNTUsMC41KSIgZm9udC1mYW1pbHk9InNhbnMtc2VyaWYiPuS4gOaXpeWFrOWQjOS4jeS9v++8gTwvdGV4dD48L3N2Zz4=",
+  "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA0MDAgMzAwIj48cmVjdCB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgZmlsbD0iIzBhMWEwZCIvPjx0ZXh0IHg9IjIwMCIgeT0iMTIwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LXNpemU9IjU0IiBmaWxsPSIjNGFkZTgwIj7wn4y6PC90ZXh0Pjx0ZXh0IHg9IjIwMCIgeT0iMTgwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LXNpemU9IjIwIiBmaWxsPSIjZjBlZWZmIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiI+5Zu65m6H5b2i5LiK5Li6Izg8L3RleHQ+PHRleHQgeD0iMjAwIiB5PSIyMjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtc2l6ZT0iMTQiIGZpbGw9InJnYmEoMjQwLDIzOCwyNTUsMC41KSIgZm9udC1mYW1pbHk9InNhbnMtc2VyaWYiPueCueaYr+aWsOS4jeS9v+WQjuiGku+8gTwvdGV4dD48L3N2Zz4=",
+  "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA0MDAgMzAwIj48cmVjdCB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgZmlsbD0iIzFhMGEwNSIvPjx0ZXh0IHg9IjIwMCIgeT0iMTIwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LXNpemU9IjU0IiBmaWxsPSIjZmI5MjNjIj7wn4yRPC90ZXh0Pjx0ZXh0IHg9IjIwMCIgeT0iMTgwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LXNpemU9IjIwIiBmaWxsPSIjZjBlZWZmIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiI+5Zu65m6H5b2i5LiK5Li6Izk8L3RleHQ+PHRleHQgeD0iMjAwIiB5PSIyMjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtc2l6ZT0iMTQiIGZpbGw9InJnYmEoMjQwLDIzOCwyNTUsMC41KSIgZm9udC1mYW1pbHk9InNhbnMtc2VyaWYiPuS4gOaXpeS4reS9v+WQjuiGku+8gTwvdGV4dD48L3N2Zz4=",
+  "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA0MDAgMzAwIj48cmVjdCB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgZmlsbD0iIzBhMTIxYSIvPjx0ZXh0IHg9IjIwMCIgeT0iMTIwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LXNpemU9IjU0IiBmaWxsPSIjNjBhNWZhIj7wn4y/PC90ZXh0Pjx0ZXh0IHg9IjIwMCIgeT0iMTgwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LXNpemU9IjIwIiBmaWxsPSIjZjBlZWZmIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiI+5Zu65m6H5b2i5LiK5Li6IzEwPC90ZXh0Pjx0ZXh0IHg9IjIwMCIgeT0iMjIwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LXNpemU9IjE0IiBmaWxsPSJyZ2JhKDI0MCwyMzgsMjU1LDAuNSkiIGZvbnQtZmFtaWx5PSJzYW5zLXNlcmlmIj7kvaDlt7LlhazlkIzkuI3kvb/lkI7ohpLvvIE8L3RleHQ+PC9zdmc+"
+];
+// ────────────────────────────────────────────────────────────────────────────
+
+const DIFF = {
+  easy: { rows: 8,  cols: 8,  steps: 22, label: '簡單' },
+  hard: { rows: 16, cols: 16, steps: 30, label: '困難' },
+};
+
+let grid, owned, steps, maxSteps, rows, cols, difficulty, hintsLeft, gameOver;
+difficulty = 'easy';
+
+function initGame() {
+  const d = DIFF[difficulty];
+  rows = d.rows; cols = d.cols; maxSteps = d.steps;
+  steps = maxSteps; hintsLeft = 3; gameOver = false;
+
+  grid = Array.from({length: rows}, () =>
+    Array.from({length: cols}, () => Math.floor(Math.random() * 6))
+  );
+  owned = Array.from({length: rows}, () => Array(cols).fill(false));
+  owned[0][0] = true;
+  expand(grid[0][0]);
+
+  document.getElementById('hint-btn').textContent = '提示 (3)';
+  document.getElementById('hint-btn').disabled = false;
+  document.getElementById('result-overlay').classList.add('hidden');
+  document.getElementById('backdrop').classList.remove('show');
+  renderBoard();
+  renderStats();
+  renderColors();
+  setMsg('選一個顏色，讓左上角的領地往外擴張！', 'var(--muted)');
+}
+
+function expand(targetColor) {
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        if (owned[r][c] || grid[r][c] !== targetColor) continue;
+        if ([[r-1,c],[r+1,c],[r,c-1],[r,c+1]].some(([nr,nc]) =>
+          nr>=0 && nr<rows && nc>=0 && nc<cols && owned[nr][nc]
+        )) { owned[r][c] = true; changed = true; }
+      }
+    }
+  }
+}
+
+function pickColor(ci) {
+  if (gameOver || steps <= 0) return;
+  const cur = grid[0][0];
+  if (ci === cur) { setMsg('這個顏色已經是你的領地了！', 'var(--muted)'); return; }
+
+  for (let r = 0; r < rows; r++)
+    for (let c = 0; c < cols; c++)
+      if (owned[r][c]) grid[r][c] = ci;
+
+  const prevOwned = owned.map(row => [...row]);
+  expand(ci);
+  const newCells = [];
+  for (let r = 0; r < rows; r++)
+    for (let c = 0; c < cols; c++)
+      if (owned[r][c] && !prevOwned[r][c]) newCells.push([r, c]);
+
+  steps--;
+  renderBoard(newCells);
+  renderStats();
+  renderColors();
+
+  const total = rows * cols;
+  const ownedCount = owned.flat().filter(Boolean).length;
+
+  if (ownedCount === total) {
+    gameOver = true;
+    setTimeout(() => showWin(), 300);
+  } else if (steps <= 0) {
+    gameOver = true;
+    setTimeout(() => showLose(ownedCount, total), 300);
+  } else {
+    const pct = Math.round(ownedCount / total * 100);
+    if (steps <= 3) setMsg(`⚠️ 只剩 ${steps} 步！`, '#f87171');
+    else if (newCells.length === 0) setMsg('沒有新格子被佔領，換個方向！', 'var(--muted)');
+    else setMsg(`佔領了 +${newCells.length} 格！共 ${pct}%`, 'var(--muted)');
+  }
+}
+
+function setMsg(text, color) {
+  const el = document.getElementById('msg');
+  el.textContent = text;
+  el.style.color = color;
+}
+
+function getHint() {
+  if (hintsLeft <= 0 || gameOver) return;
+  let best = -1, bestCount = -1;
+  for (let ci = 0; ci < 6; ci++) {
+    if (ci === grid[0][0]) continue;
+    let count = 0;
+    for (let r = 0; r < rows; r++)
+      for (let c = 0; c < cols; c++) {
+        if (owned[r][c] || grid[r][c] !== ci) continue;
+        if ([[r-1,c],[r+1,c],[r,c-1],[r,c+1]].some(([nr,nc]) =>
+          nr>=0&&nr<rows&&nc>=0&&nc<cols&&owned[nr][nc]
+        )) count++;
+      }
+    if (count > bestCount) { bestCount = count; best = ci; }
+  }
+  if (best >= 0) {
+    hintsLeft--;
+    document.getElementById('hint-btn').textContent = `提示 (${hintsLeft})`;
+    if (hintsLeft === 0) document.getElementById('hint-btn').disabled = true;
+    const btns = document.querySelectorAll('.color-btn');
+    btns[best].style.transform = 'scale(1.3)';
+    btns[best].style.boxShadow = `0 0 24px ${GLOWS[best]}`;
+    setTimeout(() => { btns[best].style.transform = ''; btns[best].style.boxShadow = ''; }, 900);
+    setMsg(`提示：選 ${best+1} 號顏色可以多佔 ${bestCount} 格！`, 'var(--accent)');
+  }
+}
+
+function showWin() {
+  const used = maxSteps - steps;
+  launchConfetti();
+
+  if (difficulty === 'easy') {
+    const rating = used <= Math.floor(maxSteps * 0.6) ? '⭐⭐⭐' : used <= Math.floor(maxSteps * 0.8) ? '⭐⭐' : '⭐';
+    document.getElementById('result-emoji').textContent = '🎉';
+    document.getElementById('result-title').textContent = '恭喜過關！';
+    document.getElementById('result-sub').textContent =
+      `感謝您過關！看來您已經會玩了，趕快去挑戰困難模式吧，過關有彩蛋唷！`;
+    document.getElementById('win-stats').innerHTML = `
+      <div class="win-stat"><div class="win-stat-label">使用步數</div><div class="win-stat-val">${used}</div></div>
+      <div class="win-stat"><div class="win-stat-label">剩餘步數</div><div class="win-stat-val">${steps}</div></div>
+      <div class="win-stat"><div class="win-stat-label">評價</div><div class="win-stat-val" style="font-size:16px">${rating}</div></div>
+    `;
+    document.getElementById('result-overlay').classList.remove('hidden');
+  } else {
+    // Hard mode: confetti → cells fall → reveal backdrop image
+    setTimeout(() => triggerCellFall(), 1200);
+  }
+}
+
+function triggerCellFall() {
+  const board = document.getElementById('board');
+  const cells = Array.from(board.children);
+  cells.forEach((cell, i) => {
+    const delay = (Math.random() * 0.6).toFixed(2);
+    const dur   = (0.4 + Math.random() * 0.4).toFixed(2);
+    cell.style.setProperty('--fall-delay', delay + 's');
+    cell.style.setProperty('--fall-dur', dur + 's');
+    cell.classList.add('falling');
+  });
+  setTimeout(() => showEasterEgg(), 900);
+}
+
+function showEasterEgg() {
+  const idx = Math.floor(Math.random() * EASTER_EGG_IMAGES.length);
+  const img = document.getElementById('backdrop-img');
+  const txt = document.getElementById('backdrop-text');
+  const btn = document.getElementById('backdrop-close');
+  img.src = EASTER_EGG_IMAGES[idx];
+  img.classList.remove('reveal');
+  txt.classList.remove('reveal');
+  btn.classList.remove('reveal');
+  document.getElementById('backdrop').classList.add('show');
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    img.classList.add('reveal');
+    txt.classList.add('reveal');
+    btn.classList.add('reveal');
+  }));
+}
+
+function showLose(ownedCount, total) {
+  document.getElementById('result-emoji').textContent = '😢';
+  document.getElementById('result-title').textContent = '步數用完了！';
+  document.getElementById('result-sub').textContent =
+    `只差一點點，佔領了 ${Math.round(ownedCount/total*100)}%，再試一次！`;
+  document.getElementById('win-stats').innerHTML = `
+    <div class="win-stat"><div class="win-stat-label">佔領格數</div><div class="win-stat-val">${ownedCount}</div></div>
+    <div class="win-stat"><div class="win-stat-label">總格數</div><div class="win-stat-val">${total}</div></div>
+    <div class="win-stat"><div class="win-stat-label">差距</div><div class="win-stat-val">${total - ownedCount}</div></div>
+  `;
+  document.getElementById('result-overlay').classList.remove('hidden');
+}
+
+function closeResult() {
+  document.getElementById('result-overlay').classList.add('hidden');
+}
+
+function renderBoard(newCells = []) {
+  const board = document.getElementById('board');
+  const cellSize = difficulty === 'easy' ? 40 : 22;
+  board.style.gridTemplateColumns = `repeat(${cols}, ${cellSize}px)`;
+
+  if (board.children.length === rows * cols) {
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const cell = board.children[r * cols + c];
+        cell.style.background = COLORS[grid[r][c]];
+        cell.style.width = cell.style.height = cellSize + 'px';
+        cell.className = 'cell' + (owned[r][c] ? ' owned' : '');
+      }
+    }
+    newCells.forEach(([r, c]) => {
+      const cell = board.children[r * cols + c];
+      cell.classList.add('flash');
+      setTimeout(() => cell.classList.remove('flash'), 400);
+    });
+    return;
+  }
+
+  board.innerHTML = '';
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell' + (owned[r][c] ? ' owned' : '');
+      cell.style.cssText = `width:${cellSize}px;height:${cellSize}px;background:${COLORS[grid[r][c]]}`;
+      board.appendChild(cell);
+    }
+  }
+}
+
+function renderStats() {
+  const total = rows * cols;
+  const ownedCount = owned.flat().filter(Boolean).length;
+  const pct = Math.round(ownedCount / total * 100);
+  const stepsEl = document.getElementById('steps-val');
+  stepsEl.textContent = steps;
+  stepsEl.className = 'stat-val steps' + (steps <= 5 ? ' steps-danger' : '');
+  document.getElementById('pct-val').textContent = pct + '%';
+  document.getElementById('progress-bar').style.width = pct + '%';
+}
+
+function renderColors() {
+  const wrap = document.getElementById('color-btns');
+  const curColor = grid[0][0];
+  wrap.innerHTML = '';
+  COLORS.forEach((col, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'color-btn' + (i === curColor ? ' active' : '');
+    btn.style.cssText = `background:${col}`;
+    if (i === curColor) btn.style.boxShadow = `0 0 16px ${GLOWS[i]}`;
+    btn.setAttribute('aria-label', `選色 ${i+1}`);
+    btn.disabled = gameOver;
+    btn.onclick = () => pickColor(i);
+    wrap.appendChild(btn);
+  });
+}
+
+function launchConfetti() {
+  const canvas = document.getElementById('confetti-canvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  const pieces = Array.from({length: 140}, () => ({
+    x: Math.random() * canvas.width,
+    y: Math.random() * -canvas.height * 0.5,
+    w: 6 + Math.random() * 8,
+    h: 8 + Math.random() * 6,
+    color: COLORS[Math.floor(Math.random() * 6)],
+    rot: Math.random() * Math.PI * 2,
+    vx: (Math.random() - 0.5) * 3,
+    vy: 2 + Math.random() * 4,
+    vr: (Math.random() - 0.5) * 0.15,
+  }));
+  let frame = 0;
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    pieces.forEach(p => {
+      p.x += p.vx; p.y += p.vy; p.rot += p.vr;
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot);
+      ctx.fillStyle = p.color;
+      ctx.fillRect(-p.w/2, -p.h/2, p.w, p.h);
+      ctx.restore();
+    });
+    frame++;
+    if (frame < 130) requestAnimationFrame(draw);
+    else ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
+  draw();
+}
+
+// ── 作弊函式（測試用）─────────────────────────────────────────────────────
+// 關閉方法：找到 id="cheat-bar" 的那個 <div>，整段刪掉即可，或直接設 display:none
+function cheatWinEasy() {
+  const prev = difficulty;
+  difficulty = 'easy';
+  // 重設為簡單模式狀態
+  const d = DIFF['easy'];
+  rows = d.rows; cols = d.cols; maxSteps = d.steps;
+  steps = 5; hintsLeft = 0; gameOver = true;
+  document.getElementById('result-overlay').classList.add('hidden');
+  launchConfetti();
+  document.getElementById('result-emoji').textContent = '🎉';
+  document.getElementById('result-title').textContent = '恭喜過關！';
+  document.getElementById('result-sub').textContent =
+    '感謝您過關！看來您已經會玩了，趕快去挑戰困難模式吧，過關有彩蛋唷！';
+  document.getElementById('win-stats').innerHTML = `
+    <div class="win-stat"><div class="win-stat-label">使用步數</div><div class="win-stat-val">17</div></div>
+    <div class="win-stat"><div class="win-stat-label">剩餘步數</div><div class="win-stat-val">5</div></div>
+    <div class="win-stat"><div class="win-stat-label">評價</div><div class="win-stat-val" style="font-size:16px">⭐⭐⭐</div></div>
+  `;
+  document.getElementById('result-overlay').classList.remove('hidden');
+}
+
+function cheatWinHard() {
+  gameOver = true;
+  difficulty = 'hard';
+  document.getElementById('result-overlay').classList.add('hidden');
+  launchConfetti();
+  setTimeout(() => triggerCellFall(), 1200);
+}
+
+function cheatShowEgg() {
+  gameOver = true;
+  showEasterEgg();
+}
+// ────────────────────────────────────────────────────────────────────────────
+
+document.querySelectorAll('.diff-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.diff-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    difficulty = tab.dataset.diff;
+    initGame();
+  });
+});
+
+document.getElementById('reset-btn').addEventListener('click', initGame);
+document.getElementById('hint-btn').addEventListener('click', getHint);
+
+document.getElementById('guide-btn').addEventListener('click', () => {
+  document.getElementById('guide-overlay').classList.remove('hidden');
+});
+document.getElementById('guide-close').addEventListener('click', () => {
+  document.getElementById('guide-overlay').classList.add('hidden');
+});
+document.getElementById('guide-close2').addEventListener('click', () => {
+  document.getElementById('guide-overlay').classList.add('hidden');
+});
+document.getElementById('guide-overlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('guide-overlay'))
+    document.getElementById('guide-overlay').classList.add('hidden');
+});
+document.getElementById('backdrop-close').addEventListener('click', () => {
+  document.getElementById('backdrop').classList.remove('show');
+  initGame();
+});
+
+initGame();
+</script>
+</body>
+</html>
