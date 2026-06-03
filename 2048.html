@@ -1160,11 +1160,12 @@ function autoScale() {
 }
 
 // Prevent all default touch scroll/bounce on page (Safari fix)
-// But allow boardWrap touches to still fire for swipe detection
-document.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
-document.addEventListener('touchstart', e => {
-  // Allow default only inside boardWrap so swipe still registers
-}, { passive: true });
+// But allow scrolling inside guide modal box
+document.addEventListener('touchmove', e => {
+  const guideBox = document.querySelector('.guide-box');
+  if (guideBox && guideBox.contains(e.target)) return; // allow scroll in guide
+  e.preventDefault();
+}, { passive: false });
 
 window.addEventListener('resize', autoScale);
 window.addEventListener('orientationchange', () => setTimeout(autoScale, 300));
