@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
 <title>2048 HARDCORE</title>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <style>
@@ -49,6 +49,7 @@
     align-items: center;
     gap: 20px;
     z-index: 1;
+    transform-origin: top center;
   }
 
   header {
@@ -1129,7 +1130,30 @@ document.getElementById('confirmNo').addEventListener('click', () => {
   confirmCallback = null;
 });
 
+// Auto-scale to fit screen
+function autoScale() {
+  const wrapper = document.querySelector('.wrapper');
+  // Reset scale first to measure natural size
+  wrapper.style.transform = 'scale(1)';
+  const ww = window.innerWidth;
+  const wh = window.innerHeight;
+  const nw = wrapper.offsetWidth;
+  const nh = wrapper.offsetHeight;
+  const scaleX = ww / (nw + 32); // 16px padding each side
+  const scaleY = wh / (nh + 32);
+  const scale = Math.min(scaleX, scaleY, 1); // never scale up beyond 1
+  wrapper.style.transform = `scale(${scale})`;
+  // Center vertically after scale
+  const scaledH = nh * scale;
+  const topOffset = Math.max((wh - scaledH) / 2, 16);
+  wrapper.style.marginTop = topOffset + 'px';
+}
+
+window.addEventListener('resize', autoScale);
+window.addEventListener('orientationchange', () => setTimeout(autoScale, 200));
+
 initGame();
+setTimeout(autoScale, 50); // slight delay so fonts are loaded
 </script>
 </body>
 </html>
