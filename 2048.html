@@ -403,6 +403,149 @@
     z-index: 30;
   }
 
+  /* guide modal */
+  .guide-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.75);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(4px);
+  }
+  .guide-backdrop.show { display: flex; }
+
+  .guide-box {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 32px 36px;
+    max-width: 500px;
+    width: 90vw;
+    max-height: 80vh;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    position: relative;
+  }
+
+  .guide-box::-webkit-scrollbar { width: 4px; }
+  .guide-box::-webkit-scrollbar-track { background: transparent; }
+  .guide-box::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+  .guide-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .guide-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 36px;
+    letter-spacing: 4px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .guide-close {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 18px;
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    transition: all 0.15s;
+    font-family: monospace;
+  }
+  .guide-close:hover { border-color: var(--accent); color: var(--accent); }
+
+  .guide-section { display: flex; flex-direction: column; gap: 10px; }
+
+  .guide-section-title {
+    font-size: 10px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--accent);
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 6px;
+  }
+
+  .guide-text {
+    font-size: 11px;
+    line-height: 2;
+    color: #b0b0c8;
+    letter-spacing: 0.5px;
+  }
+
+  .guide-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    font-size: 11px;
+    color: #b0b0c8;
+    line-height: 1.8;
+  }
+
+  .guide-icon {
+    font-size: 18px;
+    min-width: 24px;
+    text-align: center;
+    margin-top: 1px;
+  }
+
+  .guide-key {
+    display: inline-block;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 7px;
+    font-size: 10px;
+    letter-spacing: 1px;
+    color: var(--text);
+    margin: 0 2px;
+  }
+
+  .guide-levels {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+
+  .guide-level-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .guide-level-num {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 20px;
+    letter-spacing: 2px;
+    color: var(--accent);
+  }
+
+  .guide-level-info {
+    font-size: 9px;
+    letter-spacing: 1px;
+    color: var(--muted);
+    line-height: 1.8;
+  }
+
   /* custom confirm modal */
   .modal-backdrop {
     display: none;
@@ -465,6 +608,7 @@
           <span id="target-hint">Goal: 2048</span>
         </div>
         <button class="btn-ghost" id="undoBtn">↩ Undo</button>
+        <button class="btn-ghost" id="guideBtn">？ 遊戲指南</button>
         <button class="btn-ghost" id="testWinBtn" title="測試過關特效"style="display:none">🧪 Test Win</button>
         <button class="btn-primary" id="newBtn">New Game</button>
       </div>
@@ -475,7 +619,6 @@
     <div class="win-bg" id="winBg"></div>
     <div class="board-bg" id="boardBg"></div>
     <div class="tiles-layer" id="tilesLayer">
-      <div class="swipe-zone" id="swipeZone"></div>
     </div>
     <div class="overlay" id="overlay">
       <div class="overlay-title" id="overlayTitle">GAME OVER</div>
@@ -491,6 +634,88 @@
 
   <div class="hint">
     ← → ↑ ↓ Arrow keys &nbsp;·&nbsp; Swipe on mobile &nbsp;·&nbsp; ■ = obstacle block
+  </div>
+</div>
+
+<div class="guide-backdrop" id="guideModal">
+  <div class="guide-box">
+    <div class="guide-header">
+      <div class="guide-title">遊戲指南</div>
+      <button class="guide-close" id="guideClose">✕</button>
+    </div>
+
+    <div class="guide-section">
+      <div class="guide-section-title">🎯 遊戲目標</div>
+      <div class="guide-text">
+        滑動棋盤上的數字磚塊，讓相同數字的磚塊合併，數字加倍。<br>
+        達到目標數字即可過關，解鎖更高難度關卡與隨機獎勵圖片！
+      </div>
+    </div>
+
+    <div class="guide-section">
+      <div class="guide-section-title">🕹️ 操作方式</div>
+      <div class="guide-row">
+        <div class="guide-icon">⌨️</div>
+        <div>鍵盤方向鍵 <span class="guide-key">↑</span><span class="guide-key">↓</span><span class="guide-key">←</span><span class="guide-key">→</span>，或 <span class="guide-key">W</span><span class="guide-key">A</span><span class="guide-key">S</span><span class="guide-key">D</span> 移動所有磚塊</div>
+      </div>
+      <div class="guide-row">
+        <div class="guide-icon">👆</div>
+        <div>手機／平板可直接在棋盤上滑動操作</div>
+      </div>
+      <div class="guide-row">
+        <div class="guide-icon">↩️</div>
+        <div><strong>Undo</strong>：悔棋一步，每次移動限用一次</div>
+      </div>
+    </div>
+
+    <div class="guide-section">
+      <div class="guide-section-title">📋 合併規則</div>
+      <div class="guide-row">
+        <div class="guide-icon">✅</div>
+        <div>滑動時，所有磚塊同方向移動，相同數字碰在一起會合併成兩倍</div>
+      </div>
+      <div class="guide-row">
+        <div class="guide-icon">⚠️</div>
+        <div>同一次滑動中，每個磚塊只能合併一次</div>
+      </div>
+      <div class="guide-row">
+        <div class="guide-icon">■</div>
+        <div><strong>障礙格（■）</strong>：固定不動，會切斷滑動路徑，磚塊無法穿越</div>
+      </div>
+    </div>
+
+    <div class="guide-section">
+      <div class="guide-section-title">🏆 關卡難度</div>
+      <div class="guide-levels">
+        <div class="guide-level-card">
+          <div class="guide-level-num">LV 1</div>
+          <div class="guide-level-info">目標：2048<br>障礙：2 個</div>
+        </div>
+        <div class="guide-level-card">
+          <div class="guide-level-num">LV 2</div>
+          <div class="guide-level-info">目標：4096<br>障礙：3 個</div>
+        </div>
+        <div class="guide-level-card">
+          <div class="guide-level-num">LV 3</div>
+          <div class="guide-level-info">目標：8192<br>障礙：4 個</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="guide-section">
+      <div class="guide-section-title">🎁 過關獎勵</div>
+      <div class="guide-text">
+        每次成功過關，系統會隨機發放一張獎勵圖片，共 10 種，看看你能收集到哪一張！
+      </div>
+    </div>
+
+    <div class="guide-section">
+      <div class="guide-section-title">💀 遊戲結束</div>
+      <div class="guide-text">
+        當棋盤填滿且沒有任何相鄰磚塊可以合併時，遊戲結束。
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -846,13 +1071,13 @@ document.addEventListener('keydown', e => {
   if (map[e.key]) { e.preventDefault(); move(map[e.key]); }
 });
 
-// Swipe
+// Swipe - bind to boardWrap so tiles don't block touch events
 let touchStart = null;
-const swipeZone = document.getElementById('swipeZone');
-swipeZone.addEventListener('touchstart', e => {
+const boardWrap = document.getElementById('boardWrap');
+boardWrap.addEventListener('touchstart', e => {
   touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
 }, { passive: true });
-swipeZone.addEventListener('touchend', e => {
+boardWrap.addEventListener('touchend', e => {
   if (!touchStart) return;
   const dx = e.changedTouches[0].clientX - touchStart.x;
   const dy = e.changedTouches[0].clientY - touchStart.y;
@@ -866,6 +1091,16 @@ document.getElementById('newBtn').addEventListener('click', () => {
   showConfirm('重新開始遊戲？目前進度將會消失。', () => initGame());
 });
 document.getElementById('undoBtn').addEventListener('click', undo);
+document.getElementById('guideBtn').addEventListener('click', () => {
+  document.getElementById('guideModal').classList.add('show');
+});
+document.getElementById('guideClose').addEventListener('click', () => {
+  document.getElementById('guideModal').classList.remove('show');
+});
+document.getElementById('guideModal').addEventListener('click', (e) => {
+  if (e.target === document.getElementById('guideModal'))
+    document.getElementById('guideModal').classList.remove('show');
+});
 document.getElementById('testWinBtn').addEventListener('click', () => {
   if (!won) { won = true; triggerWinEffect(); }
 });
