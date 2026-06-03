@@ -21,16 +21,23 @@
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    position: fixed;
+    touch-action: none;
+  }
+
   body {
     background: var(--bg);
     color: var(--text);
     font-family: 'Space Mono', monospace;
-    min-height: 100vh;
+    height: 100%;
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
-    overflow: hidden;
+    justify-content: flex-start;
   }
 
   body::before {
@@ -1130,30 +1137,40 @@ document.getElementById('confirmNo').addEventListener('click', () => {
   confirmCallback = null;
 });
 
-// Auto-scale to fit screen
+// Auto-scale to fit screen (Safari-safe)
 function autoScale() {
   const wrapper = document.querySelector('.wrapper');
-  // Reset scale first to measure natural size
   wrapper.style.transform = 'scale(1)';
+  wrapper.style.marginTop = '0px';
+
+  // Use innerWidth/innerHeight — works correctly on Safari (unlike 100vh)
   const ww = window.innerWidth;
   const wh = window.innerHeight;
   const nw = wrapper.offsetWidth;
   const nh = wrapper.offsetHeight;
-  const scaleX = ww / (nw + 32); // 16px padding each side
-  const scaleY = wh / (nh + 32);
-  const scale = Math.min(scaleX, scaleY, 1); // never scale up beyond 1
+
+  const scaleX = (ww - 32) / nw;
+  const scaleY = (wh - 32) / nh;
+  const scale = Math.min(scaleX, scaleY, 1);
+
   wrapper.style.transform = `scale(${scale})`;
-  // Center vertically after scale
   const scaledH = nh * scale;
-  const topOffset = Math.max((wh - scaledH) / 2, 16);
+  const topOffset = Math.max((wh - scaledH) / 2, 8);
   wrapper.style.marginTop = topOffset + 'px';
 }
 
+// Prevent all default touch scroll/bounce on page (Safari fix)
+// But allow boardWrap touches to still fire for swipe detection
+document.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
+document.addEventListener('touchstart', e => {
+  // Allow default only inside boardWrap so swipe still registers
+}, { passive: true });
+
 window.addEventListener('resize', autoScale);
-window.addEventListener('orientationchange', () => setTimeout(autoScale, 200));
+window.addEventListener('orientationchange', () => setTimeout(autoScale, 300));
 
 initGame();
-setTimeout(autoScale, 50); // slight delay so fonts are loaded
+setTimeout(autoScale, 100);
 </script>
 </body>
 </html>
